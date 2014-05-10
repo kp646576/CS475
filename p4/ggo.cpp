@@ -31,31 +31,33 @@ const float MIDPRECIP 				=	10.0;
 
 pthread_barrier_t DoneComputing, DoneAssigning, DonePrinting;
 /*
-Questions:
-** Add my own variable into the mix
-1. When does the program end? When the year is at 2019? YES
+** Add my own variable
+*/
 
-*/
-// Watcher
-// TODO: Add in barriers
-// TODO: Need pthread_exit()?
-/*
-	Keeps running until the year is 2020
-	Print current set of global state variables
-	Increment month counter
-	Use new month counter to calculate Temperature and Precipitation
-*/
 float Ranf(float low, float high)
 {
 	float r = (float) rand();		// 0 - RAND_MAX
 	return(low  +  r * (high - low) / (float)RAND_MAX);
 }
 
+// Watcher
+/*
+	Keeps running until the year is 2020
+	Print current set of global state variables
+	Increment month counter
+	Use new month counter to calculate Temperature and Precipitation
+*/
 void * watcher(void * args)
 {
+	FILE * f;
+	f = fopen("./results.csv", "a");
+
 	// Exit if the year is 2020
 	while (NowYear < 2020) {
 		pthread_barrier_wait(&DoneAssigning);
+
+		// Write to CSV file
+		fprintf(f, "%d, %d, %f, %f, %f\n", NowMonth, NowNumDeer, NowPrecip, NowTemp, NowHeight);
 
 		// Print global variables
 		printf("Now Year = %d\n",     NowYear);
@@ -82,6 +84,8 @@ void * watcher(void * args)
 
 		pthread_barrier_wait(&DonePrinting);
 	}
+
+	fclose(f);
 	// pthread_exit(NULL);
 }
 
@@ -95,7 +99,7 @@ void * grain_growth(void * args)
 		float precipFactor =  pow( M_E, -(pfexp) );
 
 		// Compute new grain height
-		printf("GG: Prev Now Height = %d\n", NowHeight);
+		printf("GG: Prev Now Height = %f\n", NowHeight);
 		float tmpHeight = NowHeight;
 		tmpHeight += tempFactor * precipFactor * GRAIN_GROWS_PER_MONTH;
 	 	tmpHeight -= (float) NowNumDeer * ONE_DEER_EATS_PER_MONTH;
@@ -106,7 +110,7 @@ void * grain_growth(void * args)
 
 		// Write to global NowHeight
 		NowHeight = tmpHeight;
-	 	printf("GG: New Now Height = %d\n", NowHeight);
+	 	printf("GG: New Now Height = %f\n", NowHeight);
 
 	 	pthread_barrier_wait(&DoneAssigning);
 	 	pthread_barrier_wait(&DonePrinting);
@@ -145,6 +149,10 @@ int main(int argc, char ** argv)
 	NowMonth   = 0;
 	NowYear    = 2014;
 
+	pthread_barrier_init(&DoneComputing, NULL, 2);
+	pthread_barrier_init(&DoneAssigning, NULL, 3);
+	pthread_barrier_init(&DonePrinting,  NULL, 3);
+
 	pthread_t w, gg, gd;
 
 	pthread_create(&w,  NULL, watcher,      NULL);
@@ -156,6 +164,10 @@ int main(int argc, char ** argv)
 		printf("pthread_cancel(gg) error.\n");
 	if (pthread_cancel(gd) != 0)
 		printf("pthread_cancel(gd) error.\n");
+
+	pthread_barrier_destroy(&DoneComputing);
+	pthread_barrier_destroy(&DoneAssigning);
+	pthread_barrier_destroy(&DonePrinting);
 
 	return 0;
 }
