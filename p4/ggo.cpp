@@ -28,6 +28,7 @@ const float RANDOM_TEMP 			=	10.0;
 const float MIDTEMP 				=	40.0;
 const float MIDPRECIP 				=	10.0;
 
+pthread_barrier_t DoneComputing, DoneAssigning, DonePrinting;
 /*
 Questions:
 ** Add my own variable into the mix
@@ -47,6 +48,8 @@ void * watcher(void * args)
 {
 	// Exit if the year is 2020
 	while (NowYear < 2020) {
+		pthread_barrier_wait(&DoneAssigning);
+
 		// Print global variables
 		printf("Now Year = %d\n",     NowYear);
 		printf("Now Month = %d\n",    NowMonth);
@@ -57,6 +60,8 @@ void * watcher(void * args)
 
 		// Update month count and re-calculate temperature and precipitation
 		NowMonth++;
+		if (NowMonth % 12 == 0)
+			NowYear++;
 
 		float ang = (  30.*(float)NowMonth + 15.  ) * ( M_PI / 180. );
 
@@ -67,6 +72,8 @@ void * watcher(void * args)
 		NowPrecip = precip + Ranf( -RANDOM_PRECIP, RANDOM_PRECIP );
 		if( NowPrecip < 0. )
 			NowPrecip = 0.;
+
+		pthread_barrier_wait(&DonePrinting);
 	}
 	pthread_exit();
 }
@@ -74,33 +81,52 @@ void * watcher(void * args)
 // Grain Growth
 void * grain_growth(void * args)
 {
+	while(True) {
+		float tempFactor = pow(M_E, -( pow(T-MIDTEMP/10, 2) ));
+		float percipFactor =  pow(M_E, -( pow(P-MIDPRECIP/10, 2) ));
 
-}
-/*
-	float tempFactor = pow(M_E, -( pow(T-MIDTEMP/10, 2) ));
-	float percipFactor =  pow(M_E, -( pow(P-MIDPRECIP/10, 2) ));
+		// Compute new grain height
+		printf("GG: Prev Now Height = %d\n", NowHeight);
+		float tmpHeight = NowHeight;
+		tmpHeight += tempFactor * precipFactor * GRAIN_GROWS_PER_MONTH;
+	 	tmpHeight -= (float) NowNumDeer * ONE_DEER_EATS_PER_MONTH;
+		if (tmpHeight < 0)
+	 		tmpHeight = 0;
+		
+		pthread_barrier_wait(&DoneComputing);
 
-	if (conditions good) {
-		NowHeight += tempFactor * precipFactor * GRAIN_GROWS_PER_MONTH;
-	} else { 
- 		NowHeight -= (float)NowNumDeer * ONE_DEER_EATS_PER_MONTH;
-		if (NowHeight < 0)
- 			NowHeight = 0;
+		// Write to global NowHeight
+		NowHeight = tmpHeight;
+	 	printf("GG: New Now Height = %d\n", NowHeight);
+
+	 	pthread_barrier_wait(&DoneAssigning);
+	 	pthread_barrier_wait(&DonePrinting);
  	}
-*/
+}
 
 // Grain Deer
 void * grain_deer(void * args)
 {
+	while (True) {
+		// Carrying Capacity of graindeer = inches height of grain
+		printf("GD: Prev Now Num Deer = %d\n", NowNumDeer);
+		int tmpNumDeer = NowNumDeer;
 
+		if (tmpNumDeer > NowHeight)
+			tmpNumDeer--;
+		else 
+			tmpNumDeer++;
+
+		pthread_barrier_wait(&DoneComputing);
+
+		// Write to global NowNumDeer
+		NowNumDeer = tmpNumDeer;
+		printf("GD: New Now Num Deer = %d\n", NowNumDeer);
+		
+		pthread_barrier_wait(&DoneAssigning);
+		pthread_barrier_wait(&DonePrinting);
+	}
 }
-/*
-	Carrying Capacity of graindeer = inches height of grain
-	if (NowNumDeer > NowHeight)
-		NowNumDeer--;
-	else 
-		NowNumDeer++;
-*/
 
 int main(int argc, char ** argv)
 {
