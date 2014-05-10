@@ -1,6 +1,7 @@
 #include <math.h>
 #include <pthread.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 // Global variables:
 int		NowYear;		// 2014 - 2019
@@ -44,6 +45,12 @@ Questions:
 	Increment month counter
 	Use new month counter to calculate Temperature and Precipitation
 */
+float Ranf(float low, float high)
+{
+	float r = (float) rand();		// 0 - RAND_MAX
+	return(low  +  r * (high - low) / (float)RAND_MAX);
+}
+
 void * watcher(void * args)
 {
 	// Exit if the year is 2020
@@ -75,15 +82,17 @@ void * watcher(void * args)
 
 		pthread_barrier_wait(&DonePrinting);
 	}
-	pthread_exit();
+	// pthread_exit(NULL);
 }
 
 // Grain Growth
 void * grain_growth(void * args)
 {
-	while(True) {
-		float tempFactor = pow(M_E, -( pow(T-MIDTEMP/10, 2) ));
-		float percipFactor =  pow(M_E, -( pow(P-MIDPRECIP/10, 2) ));
+	while(true) {
+		float tfexp = pow( (NowTemp-MIDTEMP)/10, 2 );
+		float tempFactor = pow( M_E, -(tfexp) );
+		float pfexp = pow( (NowPrecip-MIDPRECIP)/10, 2 );
+		float precipFactor =  pow( M_E, -(pfexp) );
 
 		// Compute new grain height
 		printf("GG: Prev Now Height = %d\n", NowHeight);
@@ -107,7 +116,7 @@ void * grain_growth(void * args)
 // Grain Deer
 void * grain_deer(void * args)
 {
-	while (True) {
+	while (true) {
 		// Carrying Capacity of graindeer = inches height of grain
 		printf("GD: Prev Now Num Deer = %d\n", NowNumDeer);
 		int tmpNumDeer = NowNumDeer;
@@ -137,10 +146,10 @@ int main(int argc, char ** argv)
 	NowYear    = 2014;
 
 	pthread_t w, gg, gd;
-	int val = 0;
-	pthread_create(&w,  NULL, watcher,      (address_t) &val);
-	pthread_create(&gg, NULL, grain_growth, (address_t) &val);
-	pthread_create(&gd, NULL, grain_deer,   (address_t) &val);
+
+	pthread_create(&w,  NULL, watcher,      NULL);
+	pthread_create(&gg, NULL, grain_growth, NULL);
+	pthread_create(&gd, NULL, grain_deer,   NULL);
 
 	pthread_join(w, NULL);
 	if (pthread_cancel(gg) != 0)
