@@ -7,6 +7,7 @@
 int		NowYear;		// 2014 - 2019
 int		NowMonth;		// 0 - 11
 int		NowNumDeer;
+int 	NowNumMartian;
 float	NowPrecip;		// inches of rain per month
 float	NowTemp;		// temperature this month
 float	NowHeight;		// grain height in inches
@@ -29,7 +30,7 @@ const float RANDOM_TEMP 			=	10.0;
 const float MIDTEMP 				=	40.0;
 const float MIDPRECIP 				=	10.0;
 
-pthread_barrier_t DoneComputing, DoneAssigning, DonePrinting;
+pthread_barrier_t DoneComputing, DoneGrainDeer, DoneAssigning, DonePrinting;
 /*
 ** Add my own variable
 */
@@ -37,7 +38,32 @@ pthread_barrier_t DoneComputing, DoneAssigning, DonePrinting;
 float Ranf(float low, float high)
 {
 	float r = (float) rand();		// 0 - RAND_MAX
-	return(low  +  r * (high - low) / (float)RAND_MAX);
+	return(low  +  r * (high - low) / (float) RAND_MAX);
+}
+
+int Ranf()
+{
+	return rand() % 3;
+}
+
+// r --> 0
+// p --> 1
+// s --> 2
+// 0 > 2
+// 1 > 0
+// 2 > 1
+int RPC(int p1, int p2)
+{
+	int result = 2;
+	if (p1 == p2)
+		result = 0;
+	else if (p1 == 2 && p2 == 1)
+		result = 1;
+	else if (p1 == 1 && p2 == 0)
+		result = 1;
+	else if (p1 == 0 && p2 == 2)
+		result = 1;
+	return result;
 }
 
 // Watcher
@@ -136,38 +162,75 @@ void * grain_deer(void * args)
 		NowNumDeer = tmpNumDeer;
 		printf("GD: New Now Num Deer = %d\n", NowNumDeer);
 		
+		pthread_barrier_wait(&DoneGrainDeer);
 		pthread_barrier_wait(&DoneAssigning);
 		pthread_barrier_wait(&DonePrinting);
+	}
+}
+
+/*
+	At the beginning of every year a martian and a deer play
+	a round of rock-paper-scissors to determine which race
+	will offer the sacrefice to the weather gods.  In the event
+	of a draw both races will provide a scarefice.
+*/
+void * martian(void * args)
+{
+	while (true) {
+		
+		int DeerSacrefice = 0;
+		int MartianSacrefice = 0;
+		if (NowMonth % 12 == 0) {
+			int m = Ranf();
+			int d = Ranf();
+			int result = RPC(m, d);
+			if (result == 1 || result == 0)
+				DeerSacrefice++;
+			else if (result == 2 || result == 0)
+				MartianSacrefice++;
+		}
+		pthread_barrier_wait(&DoneGrainDeer);
+		NowNumDeer -= DeerSacrefice;
+		NowNumMartian -= MartianSacrefice;
+
+		pthread_barrier_wait(&DoneAssigning);
+	 	pthread_barrier_wait(&DonePrinting);
 	}
 }
 
 int main(int argc, char ** argv)
 {
 	// Starting Values
-	NowNumDeer = 1;
-	NowHeight  = 1.;
-	NowMonth   = 0;
-	NowYear    = 2014;
+	NowNumMartian = 1;
+	NowNumDeer    = 1;
+	NowHeight     = 1.;
+	NowMonth      = 0;
+	NowYear       = 2014;
 
 	pthread_barrier_init(&DoneComputing, NULL, 2);
-	pthread_barrier_init(&DoneAssigning, NULL, 3);
-	pthread_barrier_init(&DonePrinting,  NULL, 3);
+	pthread_barrier_init(&DoneGrainDeer, NULL, 2);
+	pthread_barrier_init(&DoneAssigning, NULL, 4);
+	pthread_barrier_init(&DonePrinting,  NULL, 4);
 
-	pthread_t w, gg, gd;
+	pthread_t w, gg, gd, m;
 
 	pthread_create(&w,  NULL, watcher,      NULL);
 	pthread_create(&gg, NULL, grain_growth, NULL);
 	pthread_create(&gd, NULL, grain_deer,   NULL);
+	pthread_create(&m,  NULL, martian,      NULL);
 
 	pthread_join(w, NULL);
 	if (pthread_cancel(gg) != 0)
 		printf("pthread_cancel(gg) error.\n");
 	if (pthread_cancel(gd) != 0)
 		printf("pthread_cancel(gd) error.\n");
+	if (pthread_cancel(m) != 0)
+		printf("pthread_cancel(gd) error.\n");
 
 	pthread_barrier_destroy(&DoneComputing);
 	pthread_barrier_destroy(&DoneAssigning);
 	pthread_barrier_destroy(&DonePrinting);
+	pthread_barrier_destroy(&DoneGrainDeer);
 
 	return 0;
 }
