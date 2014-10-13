@@ -1,4 +1,4 @@
-cs475
+CS475
 =====
 
 Intro to Parallel Computing
